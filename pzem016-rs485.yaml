@@ -149,7 +149,16 @@ globals:
     restore_value: true
     initial_value: "0.0"
 
- 
+  - id: energia_settimana_scorsa
+    type: float
+    restore_value: true
+    initial_value: "0.0"
+
+  - id: energia_mese_scorso
+    type: float
+    restore_value: true
+    initial_value: "0.0"
+
   # Variabili globali per i consumi stagionali (con salvataggio)
   - id: energia_primavera
     type: float
@@ -187,11 +196,12 @@ button:
           data: [0x42, 0x00]  # Comando per resettare l'energia (0x42)
       - lambda: |-
           //id(energia_totale)->publish_state(0.0);
-          id(energia_totale).state = (0.0);
           id(energia_giorno) = 0.0;
           id(energia_ieri) = 0.0;
           id(energia_settimana) = 0.0;
+          id(energia_settimana_scorsa) = 0.0;
           id(energia_mese) = 0.0;
+          id(energia_mese_scorso) = 0.0;
           id(energia_anno) = 0.0;
           id(energia_primavera) = 0.0;
           id(energia_estate) = 0.0;
@@ -370,7 +380,23 @@ sensor:
       return id(energia_inverno);
     icon: "mdi:snowflake"  # Icona per l'Inverno
 
+  - platform: template
+    name: "Energia Settimana Scorsa"
+    id: energia_settimana_scorsa_sensor
+    unit_of_measurement: "kWh"
+    accuracy_decimals: 2
+    icon: "mdi:calendar-week"
+    lambda: |-
+      return id(energia_settimana_scorsa);
 
+  - platform: template
+    name: "Energia Mese Scorso"
+    id: energia_mese_scorso_sensor
+    unit_of_measurement: "kWh"
+    accuracy_decimals: 2
+    icon: "mdi:calendar-month"
+    lambda: |-
+      return id(energia_mese_scorso);
 
     
   # Sensore per aggiornare i consumi stagionali
@@ -429,21 +455,7 @@ time:
               id(energia_ieri) = id(energia_giorno);
               id(energia_giorno) = 0.0;
 
-      - seconds: 0
-        minutes: 0
-        hours: 0
-        days_of_week: MON
-        then:
-          - lambda: |-
-              id(energia_settimana) = 0.0;
-
-      - seconds: 0
-        minutes: 0
-        hours: 0
-        days_of_month: 1
-        then:
-          - lambda: |-
-              id(energia_mese) = 0.0;
+     
 
       - seconds: 0
         minutes: 0
@@ -495,3 +507,24 @@ time:
         then:
           - lambda: |-
               id(energia_inverno) = 0.0;
+
+
+
+
+      - seconds: 0
+        minutes: 0
+        hours: 0
+        days_of_week: MON
+        then:
+          - lambda: |-
+              id(energia_settimana_scorsa) = id(energia_settimana);  // Memorizza il valore della settimana appena trascorsa
+              id(energia_settimana) = 0.0;
+
+      - seconds: 0
+        minutes: 0
+        hours: 0
+        days_of_month: 1
+        then:
+          - lambda: |-
+              id(energia_mese_scorso) = id(energia_mese);  // Memorizza il valore del mese appena trascorso
+              id(energia_mese) = 0.0;
