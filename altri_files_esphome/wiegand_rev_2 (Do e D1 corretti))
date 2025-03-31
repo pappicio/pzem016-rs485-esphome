@@ -142,6 +142,7 @@ globals:
     
   - id: last_tag
     type: uint64_t
+    restore_value: True
     initial_value: '0'  # L'ultimo tag letto sarà un numero
   
   - id: tag_history
@@ -179,18 +180,27 @@ wiegand:
             - lambda: |-
                 id(tag_history).push_back(x);
                 if (id(tag_history).size() > 24) {
-                  id(tag_history).erase(id(tag_history).begin());  // Mantiene solo gli ultimi 10 tag
+                  id(tag_history).erase(id(tag_history).begin());  // Mantiene solo gli ultimi 24 tag
                 }
 
                 std::string tags_concatenati;
                 for (const auto& tag : id(tag_history)) {
-                    tags_concatenati += tag + ", \n";
+                    // Aggiungi gli zeri a sinistra per ogni tag e concatenalo
+                    char formatted_tag[11];  // 10 cifre + terminatore nullo
+                    snprintf(formatted_tag, sizeof(formatted_tag), "%010llu", std::stoull(tag));  // Formatta a 10 cifre
+                    
+                    // Aggiungi il tag formattato alla lista con la virgola e il newline
+                    tags_concatenati += std::string(formatted_tag) + ", \n";
                 }
                 if (!tags_concatenati.empty()) {
                     tags_concatenati.pop_back();  // Rimuove l'ultima virgola
+                    tags_concatenati.pop_back();  // Rimuove l'ultimo spazio
                 }
 
-                id(homeassistant_tag_scanned).publish_state(tags_concatenati);
+                id(homeassistant_tag_scanned).publish_state(tags_concatenati); 
+
+
+
 
             - lambda: |-
                 ESP_LOGI("TAG", "Tastiera ABILITATA");
