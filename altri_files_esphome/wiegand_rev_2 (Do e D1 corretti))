@@ -1,3 +1,4 @@
+
 esphome:
   name: "test-esp8266-wiegand"
   friendly_name: test-8266-wiegand
@@ -142,6 +143,11 @@ globals:
   - id: last_tag
     type: uint64_t
     initial_value: '0'  # L'ultimo tag letto sarà un numero
+  
+  - id: tag_history
+    type: std::vector<std::string>
+    initial_value: ""
+
 
 output:
   - platform: gpio
@@ -149,6 +155,13 @@ output:
       number: GPIO2
       inverted: true
     id: led_builtin  # ID dell'output come richiesto
+
+switch:
+  - platform: template
+    id: tag_scan_enabled
+    name: "Abilita Tastiera"
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
 
 wiegand:
   - id: mykeypad
@@ -158,68 +171,90 @@ wiegand:
       - lambda: |-
           ESP_LOGI("KEY", "received key %d", x);
     on_tag:
-      - lambda: |-
-          ESP_LOGI("TAG", "Badge ricevuto: %s", x.c_str());
-          id(homeassistant_tag_scanned).publish_state(x.c_str());  // Passa come stringa esatta
+       
+      - if:
+          condition:
+            switch.is_on: tag_scan_enabled
+          then:
+            - lambda: |-
+                id(tag_history).push_back(x);
+                if (id(tag_history).size() > 24) {
+                  id(tag_history).erase(id(tag_history).begin());  // Mantiene solo gli ultimi 10 tag
+                }
 
-          uint64_t received_tag = std::stoull(x.c_str());  // Usa stoull per convertire la stringa in uint64_t
+                std::string tags_concatenati;
+                for (const auto& tag : id(tag_history)) {
+                    tags_concatenati += tag + ", \n";
+                }
+                if (!tags_concatenati.empty()) {
+                    tags_concatenati.pop_back();  // Rimuove l'ultima virgola
+                }
 
-          bool access_granted = false;
+                id(homeassistant_tag_scanned).publish_state(tags_concatenati);
 
-          // Controlla se il tag è nella LISTA 1 → LED 1
-          for (const auto& tag : id(authorized_tags_1)) {
-            if (tag == received_tag) {
-              ESP_LOGI("ACCESSO", "Badge valido per LED 1!");
-              id(led_builtin).turn_on();  // Accendi LED 1
-              delay(2000);  // LED acceso per 5 secondi
-              id(led_builtin).turn_off();  // Spegni il LED
-              access_granted = true;  // Accesso concesso
-              break;
-            }
-          }
+            - lambda: |-
+                ESP_LOGI("TAG", "Tastiera ABILITATA");
+                ESP_LOGI("TAG", "Badge ricevuto: %s", x.c_str());
+                uint64_t received_tag = std::stoull(x.c_str());  // Usa stoull per convertire la stringa in uint64_t
+                bool access_granted = false;
 
-          // Controlla se il tag è nella LISTA 2 → LED 2
-          for (const auto& tag : id(authorized_tags_2)) {
-            if (tag == received_tag) {
-              ESP_LOGI("ACCESSO", "Badge valido per LED 2!");
-              id(led_builtin).turn_on();  // Accendi LED 2
-              delay(100);  // LED acceso per 5 secondi
-              id(led_builtin).turn_off();  // Spegni il LED
-              access_granted = true;  // Accesso concesso
-              break;
-            }
-          }
+                // Controlla se il tag è nella LISTA 1 → LED 1
+                for (const auto& tag : id(authorized_tags_1)) {
+                  if (tag == received_tag) {
+                    ESP_LOGI("ACCESSO", "Badge valido per LED 1!");
+                    id(led_builtin).turn_on();  // Accendi LED 1
+                    delay(200);  // LED acceso per 5 secondi
+                    id(led_builtin).turn_off();  // Spegni il LED
+                    access_granted = true;  // Accesso concesso
+                    break;
+                  }
+                }
 
-          // Controlla se il tag è nella LISTA 3 → LED 3
-          for (const auto& tag : id(authorized_tags_3)) {
-            if (tag == received_tag) {
-              ESP_LOGI("ACCESSO", "Badge valido per LED 3!");
-              id(led_builtin).turn_on();  // Accendi LED 2
-              delay(100);  // LED acceso per 5 secondi
-              id(led_builtin).turn_off();  // Spegni il LED
-              access_granted = true;  // Accesso concesso
-              break;
-            }
-          }
+                // Controlla se il tag è nella LISTA 2 → LED 2
+                for (const auto& tag : id(authorized_tags_2)) {
+                  if (tag == received_tag) {
+                    ESP_LOGI("ACCESSO", "Badge valido per LED 2!");
+                    id(led_builtin).turn_on();  // Accendi LED 2
+                    delay(100);  // LED acceso per 5 secondi
+                    id(led_builtin).turn_off();  // Spegni il LED
+                    access_granted = true;  // Accesso concesso
+                    break;
+                  }
+                }
+
+                // Controlla se il tag è nella LISTA 3 → LED 3
+                for (const auto& tag : id(authorized_tags_3)) {
+                  if (tag == received_tag) {
+                    ESP_LOGI("ACCESSO", "Badge valido per LED 3!");
+                    id(led_builtin).turn_on();  // Accendi LED 2
+                    delay(100);  // LED acceso per 5 secondi
+                    id(led_builtin).turn_off();  // Spegni il LED
+                    access_granted = true;  // Accesso concesso
+                    break;
+                  }
+                }
 
 
-          // Controlla se il tag è nella CODE LIST → LED 4
-          for (const auto& tag : id(authorized_code_tags)) {
-            if (tag == received_tag) {
-              ESP_LOGI("ACCESSO", "CODICE valido per LED 4!");
-              id(led_builtin).turn_on();  // Accendi LED 4
-              delay(100);  // LED acceso per 5 secondi
-              id(led_builtin).turn_off();  // Spegni il LED
-              access_granted = true;  // Accesso concesso
-              break;
-            }
-          }
+                // Controlla se il tag è nella CODE LIST → LED 4
+                for (const auto& tag : id(authorized_code_tags)) {
+                  if (tag == received_tag) {
+                    ESP_LOGI("ACCESSO", "CODICE valido per LED 4!");
+                    id(led_builtin).turn_on();  // Accendi LED 4
+                    delay(100);  // LED acceso per 5 secondi
+                    id(led_builtin).turn_off();  // Spegni il LED
+                    access_granted = true;  // Accesso concesso
+                    break;
+                  }
+                }
 
-          // Se il tag non è in nessuna lista
-          if (!access_granted) {
-            ESP_LOGI("ACCESSO", "Badge non autorizzato!");
-          }
-      - homeassistant.tag_scanned: !lambda 'return x.c_str();'
+                // Se il tag non è in nessuna lista
+                if (!access_granted) {
+                  ESP_LOGI("ACCESSO", "Badge non autorizzato!");
+                }
+            - homeassistant.tag_scanned: !lambda 'return x.c_str();'
+          else:
+            - lambda: |-
+                ESP_LOGI("TAG", "Tastiera DISABILITATA");
     on_raw:
       - lambda: |-
           ESP_LOGI("RAW", "Badge ricevuto: %u", value);
